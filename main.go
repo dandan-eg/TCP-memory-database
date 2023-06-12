@@ -1,8 +1,7 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
+	"TCP-memory-database/db"
 	"log"
 	"net"
 )
@@ -16,23 +15,22 @@ func main() {
 
 	defer li.Close()
 
+	memory := db.New()
+loop:
 	for {
-		conn, err := li.Accept()
-		if err != nil {
-			log.Fatal(err)
+		select {
+		default:
+			conn, err := li.Accept()
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			go memory.Handle(conn)
+
+		case <-memory.Quit:
+			break loop
 		}
 
-		go handle(conn)
-
 	}
 
-}
-
-func handle(conn net.Conn) {
-	defer conn.Close()
-	sc := bufio.NewScanner(conn)
-
-	for sc.Scan() {
-		fmt.Println(sc.Text())
-	}
 }
