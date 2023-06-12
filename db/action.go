@@ -18,11 +18,10 @@ func (m *MemoryDB) dispatch(conn net.Conn, action, key, value string) {
 	case "GET":
 
 		v, ok := m.get(key)
-		if !ok {
-			m.respond(conn, "not found")
-		} else {
-			m.respond(conn, v)
-		}
+		m.respondTernary(conn, ok, v, "not found")
+	case "DEL":
+		ok := m.delete(key)
+		m.respondTernary(conn, ok, "OK", "not found")
 
 	case "EXIT":
 		m.respond(conn, "exited")
@@ -39,20 +38,17 @@ func (m *MemoryDB) dispatch(conn net.Conn, action, key, value string) {
 
 func (m *MemoryDB) close() {
 	for _, conn := range m.conns {
-		m.mu.Lock()
-		m.closeConn(conn)
-		m.mu.Unlock()
-
+		go m.closeConn(conn)
 	}
 
 	m.Quit <- true
 }
 
 func (m *MemoryDB) closeConn(conn net.Conn) {
-	m.deregister(conn)
 	err := conn.Close()
 	m.handleErr(err)
 
+	m.deregister(conn)
 }
 
 func (m *MemoryDB) set(k, v string) {
@@ -72,10 +68,22 @@ func (m *MemoryDB) get(k string) (string, bool) {
 
 }
 
+func (m *MemoryDB) delete(k string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.records[k]; !ok {
+		return false
+	}
+
+	delete(m.records, k)
+
+	return true
+}
+
 func (m *MemoryDB) handleErr(err error) {
 	if err != nil {
-		log.Println(err)
 		m.respondAll("internal error")
-		m.close()
+		log.Fatalf("[FATAL] %s", err)
 	}
 }

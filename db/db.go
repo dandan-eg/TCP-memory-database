@@ -28,12 +28,12 @@ func New() *MemoryDB {
 func (m *MemoryDB) register(conn net.Conn) {
 
 	m.conns = append(m.conns, conn)
-	m.respond(conn, m.String())
-	log.Printf("%d connections\n", len(m.conns))
+	//m.respond(conn, m.String())
 }
 
 func (m *MemoryDB) deregister(conn net.Conn) {
 	last := len(m.conns) - 1
+	m.mu.Lock()
 
 	for i, c := range m.conns {
 		if c == conn {
@@ -46,8 +46,8 @@ func (m *MemoryDB) deregister(conn net.Conn) {
 			return
 		}
 	}
-	log.Printf("%d connections\n", len(m.conns))
 
+	m.mu.Unlock()
 }
 
 func (m *MemoryDB) Handle(conn net.Conn) {

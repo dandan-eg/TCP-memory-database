@@ -6,17 +6,25 @@ import (
 	"strings"
 )
 
+func (m *MemoryDB) respondTernary(conn net.Conn, ok bool, strue, sfalse string) {
+	if ok {
+		m.respond(conn, strue)
+	} else {
+		m.respond(conn, sfalse)
+	}
+}
+
 func (m *MemoryDB) respond(conn net.Conn, msg string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	_, err := fmt.Fprintf(conn, fmt.Sprintf("- %s\r\n", msg))
+	_, err := fmt.Fprintf(conn, fmt.Sprintf("%s\r\n", msg))
 	m.handleErr(err)
 }
 
 func (m *MemoryDB) respondAll(msg string) {
+
 	for _, conn := range m.conns {
 		m.respond(conn, msg)
 	}
+
 }
 
 func (m *MemoryDB) String() string {
