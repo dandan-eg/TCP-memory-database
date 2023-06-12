@@ -2,11 +2,11 @@ package db
 
 import (
 	"fmt"
-	"net"
+	"io"
 	"strings"
 )
 
-func (m *MemoryDB) respondTernary(conn net.Conn, ok bool, strue, sfalse string) {
+func (m *MemoryDB) respondTernary(conn io.ReadWriteCloser, ok bool, strue, sfalse string) {
 	if ok {
 		m.respond(conn, strue)
 	} else {
@@ -14,7 +14,7 @@ func (m *MemoryDB) respondTernary(conn net.Conn, ok bool, strue, sfalse string) 
 	}
 }
 
-func (m *MemoryDB) respond(conn net.Conn, msg string) {
+func (m *MemoryDB) respond(conn io.ReadWriteCloser, msg string) {
 	_, err := fmt.Fprintf(conn, fmt.Sprintf("%s\r\n", msg))
 	m.handleErr(err)
 }

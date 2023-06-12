@@ -2,6 +2,7 @@ package db
 
 import (
 	"bufio"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -11,8 +12,9 @@ import (
 type MemoryDB struct {
 	Quit    chan bool
 	records map[string]string
-	conns   []net.Conn
+	conns   []io.ReadWriteCloser
 	mu      *sync.RWMutex
+	writer  io.Writer
 }
 
 func New() *MemoryDB {
@@ -20,7 +22,7 @@ func New() *MemoryDB {
 	return &MemoryDB{
 		Quit:    make(chan bool),
 		records: make(map[string]string),
-		conns:   make([]net.Conn, 0, 0),
+		conns:   make([]io.ReadWriteCloser, 0, 0),
 		mu:      &sync.RWMutex{},
 	}
 }
@@ -31,7 +33,7 @@ func (m *MemoryDB) register(conn net.Conn) {
 	//m.respond(conn, m.String())
 }
 
-func (m *MemoryDB) deregister(conn net.Conn) {
+func (m *MemoryDB) deregister(conn io.ReadWriteCloser) {
 	last := len(m.conns) - 1
 	m.mu.Lock()
 

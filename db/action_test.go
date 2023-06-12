@@ -252,6 +252,10 @@ func TestMemoryDB_Delete_Integration(t *testing.T) {
 
 }
 
+func TestMemoryDB_Save_Unit(t *testing.T) {
+
+}
+
 func TestMemoryDB_EXIT_Integration(t *testing.T) {
 	db := New()
 	msg := command(t, db, "EXIT")

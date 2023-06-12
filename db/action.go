@@ -1,6 +1,7 @@
 package db
 
 import (
+	"io"
 	"log"
 	"net"
 )
@@ -44,7 +45,7 @@ func (m *MemoryDB) close() {
 	m.Quit <- true
 }
 
-func (m *MemoryDB) closeConn(conn net.Conn) {
+func (m *MemoryDB) closeConn(conn io.ReadWriteCloser) {
 	err := conn.Close()
 	m.handleErr(err)
 

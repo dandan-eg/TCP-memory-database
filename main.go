@@ -14,8 +14,8 @@ func main() {
 	}
 
 	defer li.Close()
-
 	memory := db.New()
+
 loop:
 	for {
 		select {
