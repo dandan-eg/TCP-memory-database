@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"io"
 	"log"
-	"net"
 	"strings"
 	"sync"
 )
@@ -27,7 +26,7 @@ func New() *MemoryDB {
 	}
 }
 
-func (m *MemoryDB) register(conn net.Conn) {
+func (m *MemoryDB) register(conn io.ReadWriteCloser) {
 
 	m.conns = append(m.conns, conn)
 	//m.respond(conn, m.String())
@@ -52,7 +51,7 @@ func (m *MemoryDB) deregister(conn io.ReadWriteCloser) {
 	m.mu.Unlock()
 }
 
-func (m *MemoryDB) Handle(conn net.Conn) {
+func (m *MemoryDB) Handle(conn io.ReadWriteCloser) {
 
 	m.register(conn)
 

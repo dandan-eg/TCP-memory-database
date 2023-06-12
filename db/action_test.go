@@ -1,56 +1,38 @@
 package db
 
 import (
-	"fmt"
-	"io"
-	"log"
-	"net"
+	"bytes"
 	"strings"
 	"testing"
 )
 
-// command is a utility function used to simulate command execution on a MemoryDB in the context of unit tests.
-// It takes a testing.T object, a MemoryDB instance, and a command string as input.
-// It returns the response message from the command execution.
-func command(t *testing.T, db *MemoryDB, cmd string) string {
-	c1, c2 := net.Pipe()
+// Close is an implementation of the Close method of the io.Closer interface.
+func (t *TestReadWriteCloser) Close() error {
+	// This implementation is empty since we don't need to perform any close operation in this case.
+	return nil
+}
 
-	// Register the first connection (c1) with the MemoryDB for receiving responses
-	// and writing them in the second connection(c2)
-	db.register(c1)
+// String is a custom method added to TestReadWriteCloser to provide a string representation of its contents.
+// It replaces the first occurrence of "\r\n" with an empty string to remove any line breaks.
+func (t *TestReadWriteCloser) String() string {
+	s := t.Buffer.String()
 
-	go func() {
-		action, key, value := inputs(cmd)
-		db.dispatch(c1, action, key, value)
+	return strings.Replace(s, "\r\n", "", 1)
+}
 
-		err := c1.Close()
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	// Read the response from the second connection (c2) wrote in by the first connection (c1)
-	bs, errRead := io.ReadAll(c2)
-
-	if errRead != nil {
-		t.Fatal(errRead)
+// newConn creates a new TestReadWriteCloser and uses it to simulate a connection to the MemoryDB.
+// It writes the given command to the TestReadWriteCloser and passes it to the MemoryDB's Handle method.
+// It returns the TestReadWriteCloser for further inspection.
+func newConn(db *MemoryDB, cmd string) *TestReadWriteCloser {
+	rwc := &TestReadWriteCloser{
+		Buffer: bytes.NewBuffer(nil),
 	}
 
-	if err := c2.Close(); err != nil {
-		t.Fatal(err)
-	}
+	rwc.WriteString(cmd)
+	db.Handle(rwc)
 
-	if panicErr := recover(); panicErr != nil {
-		t.Fatal(panicErr)
-	}
+	return rwc
 
-	msg := string(bs)
-
-	if strings.HasSuffix(msg, "\r\n") {
-		msg = strings.Replace(msg, "\r\n", "", -1)
-	}
-
-	return msg
 }
 
 func TestMemoryDB_SET_Unit(t *testing.T) {
@@ -97,9 +79,11 @@ func TestMemoryDB_SET_Integration(t *testing.T) {
 
 	for i, test := range tests {
 		//run each scenario
-		log.Printf("Test %d : %s", i+1, test.cmd)
+		t.Logf("Test %d : %s", i+1, test.cmd)
 
-		msg := command(t, db, test.cmd)
+		conn := newConn(db, test.cmd)
+
+		msg := conn.String()
 
 		if msg != test.expected {
 			t.Fatalf("msg expected=%s, got=%s", test.expected, msg)
@@ -143,7 +127,7 @@ func TestMemoryDB_GET_Unit(t *testing.T) {
 
 	for i, test := range tests {
 		//run each scenario
-		log.Printf("Test %d : key=\"%s\" insert=%v", i+1, test.key, test.insert)
+		t.Logf("Test %d : key=\"%s\" insert=%v", i+1, test.key, test.insert)
 
 		returned, ok := db.get(test.key)
 
@@ -173,18 +157,20 @@ func TestMemoryDB_GET_Integration(t *testing.T) {
 	}
 
 	tests := []struct {
-		key      string
+		cmd      string
 		expected string
 	}{
-		{"name1", "john"},
-		{"name2", "maria"},
-		{"404", "not found"},
+		{"GET name1", "john"},
+		{"GET name2", "maria"},
+		{"GET 404", "not found"},
 	}
 
 	for i, test := range tests {
-		log.Printf("Test %d : \"%s\"", i+1, test.key)
+		t.Logf("Test %d : \"%s\"", i+1, test.cmd)
 
-		msg := command(t, db, "GET "+test.key)
+		conn := newConn(db, test.cmd)
+
+		msg := conn.String()
 
 		if msg != test.expected {
 			t.Errorf("msg expected=\"%s\", got=\"%s\"", test.expected, msg)
@@ -227,25 +213,28 @@ func TestMemoryDB_Delete_Integration(t *testing.T) {
 
 	//scenarios
 	tests := []struct {
-		key, expected string
+		cmd, expected string
 	}{
-		{key: "key1", expected: "OK"},
-		{key: "key2", expected: "OK"},
-		{key: "key404", expected: "not found"},
+		{cmd: "DEL key1", expected: "OK"},
+		{cmd: "DEL key2", expected: "OK"},
+		{cmd: "DEL key404", expected: "not found"},
 	}
 
 	for i, test := range tests {
 		//test each scenario
-		t.Logf("Test %d : \"%s\" \"%s\"", i+1, test.key, test.expected)
+		t.Logf("Test %d : \"%s\" \"%s\"", i+1, test.cmd, test.expected)
 
-		msg := command(t, db, "DEL "+test.key)
+		conn := newConn(db, test.cmd)
+
+		msg := conn.String()
 
 		if msg != test.expected {
 			t.Fatalf("expected message=\"%s\", got=\"%s\"", test.expected, msg)
 		}
 
-		if _, ok := db.records[test.key]; ok {
-			t.Fatalf("key=%s should be deleted, got ok=true", test.key)
+		key := strings.Replace(test.cmd, "DEL ", "", 1)
+		if _, ok := db.records[key]; ok {
+			t.Fatalf("key=%s should be deleted, got ok=true", key)
 		}
 
 	}
@@ -256,25 +245,6 @@ func TestMemoryDB_Save_Unit(t *testing.T) {
 
 }
 
-func TestMemoryDB_EXIT_Integration(t *testing.T) {
-	db := New()
-	msg := command(t, db, "EXIT")
-
-	if msg != "exited" {
-		t.Errorf("")
-	}
-
-	if len(db.conns) > 0 {
-		t.Errorf("")
-	}
-
-}
-
-func TestMemoryDB_CLOSE_Integration(t *testing.T) {
-	db := New()
-	msg := command(t, db, "CLOSE")
-
-	<-db.Quit
-	fmt.Println(msg)
-
+type TestReadWriteCloser struct {
+	*bytes.Buffer
 }

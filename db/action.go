@@ -3,10 +3,9 @@ package db
 import (
 	"io"
 	"log"
-	"net"
 )
 
-func (m *MemoryDB) dispatch(conn net.Conn, action, key, value string) {
+func (m *MemoryDB) dispatch(conn io.ReadWriteCloser, action, key, value string) {
 	switch action {
 	case "SET":
 		if value == "" || key == "" {
