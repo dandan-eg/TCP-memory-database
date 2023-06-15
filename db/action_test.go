@@ -2,6 +2,7 @@ package db
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 )
@@ -23,7 +24,7 @@ func (t *TestReadWriteCloser) String() string {
 // newConn creates a new TestReadWriteCloser and uses it to simulate a connection to the MemoryDB.
 // It writes the given command to the TestReadWriteCloser and passes it to the MemoryDB's Handle method.
 // It returns the TestReadWriteCloser for further inspection.
-func newConn(db *MemoryDB, cmd string) *TestReadWriteCloser {
+func execute(db *MemoryDB, cmd string) string {
 	rwc := &TestReadWriteCloser{
 		Buffer: bytes.NewBuffer(nil),
 	}
@@ -31,13 +32,13 @@ func newConn(db *MemoryDB, cmd string) *TestReadWriteCloser {
 	rwc.WriteString(cmd)
 	db.Handle(rwc)
 
-	return rwc
+	return rwc.String()
 
 }
 
 func TestMemoryDB_SET_Unit(t *testing.T) {
 	//setup
-	db := New()
+	db := New(nil)
 
 	var before, after int
 
@@ -64,7 +65,7 @@ func TestMemoryDB_SET_Unit(t *testing.T) {
 
 func TestMemoryDB_SET_Integration(t *testing.T) {
 	//setup
-	db := New()
+	db := New(nil)
 
 	//scenarios
 	tests := []struct {
@@ -81,9 +82,7 @@ func TestMemoryDB_SET_Integration(t *testing.T) {
 		//run each scenario
 		t.Logf("Test %d : %s", i+1, test.cmd)
 
-		conn := newConn(db, test.cmd)
-
-		msg := conn.String()
+		msg := execute(db, test.cmd)
 
 		if msg != test.expected {
 			t.Fatalf("msg expected=%s, got=%s", test.expected, msg)
@@ -107,7 +106,7 @@ func TestMemoryDB_SET_Integration(t *testing.T) {
 func TestMemoryDB_GET_Unit(t *testing.T) {
 
 	//setup
-	db := New()
+	db := New(nil)
 	db.records = map[string]string{
 		"1": "john",
 		"2": "daniel",
@@ -150,7 +149,7 @@ func TestMemoryDB_GET_Unit(t *testing.T) {
 
 func TestMemoryDB_GET_Integration(t *testing.T) {
 	//setup
-	db := New()
+	db := New(nil)
 	db.records = map[string]string{
 		"name1": "john",
 		"name2": "maria",
@@ -168,9 +167,7 @@ func TestMemoryDB_GET_Integration(t *testing.T) {
 	for i, test := range tests {
 		t.Logf("Test %d : \"%s\"", i+1, test.cmd)
 
-		conn := newConn(db, test.cmd)
-
-		msg := conn.String()
+		msg := execute(db, test.cmd)
 
 		if msg != test.expected {
 			t.Errorf("msg expected=\"%s\", got=\"%s\"", test.expected, msg)
@@ -182,7 +179,7 @@ func TestMemoryDB_GET_Integration(t *testing.T) {
 
 func TestMemoryDB_Delete_Unit(t *testing.T) {
 	//setup
-	db := New()
+	db := New(nil)
 	db.records = map[string]string{
 		"key": "value",
 	}
@@ -204,7 +201,7 @@ func TestMemoryDB_Delete_Unit(t *testing.T) {
 
 func TestMemoryDB_Delete_Integration(t *testing.T) {
 	//setup
-	db := New()
+	db := New(nil)
 	db.records = map[string]string{
 		"key1": "value1",
 		"key2": "value2",
@@ -224,9 +221,7 @@ func TestMemoryDB_Delete_Integration(t *testing.T) {
 		//test each scenario
 		t.Logf("Test %d : \"%s\" \"%s\"", i+1, test.cmd, test.expected)
 
-		conn := newConn(db, test.cmd)
-
-		msg := conn.String()
+		msg := execute(db, test.cmd)
 
 		if msg != test.expected {
 			t.Fatalf("expected message=\"%s\", got=\"%s\"", test.expected, msg)
@@ -241,8 +236,47 @@ func TestMemoryDB_Delete_Integration(t *testing.T) {
 
 }
 
-func TestMemoryDB_Save_Unit(t *testing.T) {
+func TestMemoryDB_Exit_Unit(t *testing.T) {
+	db := New(nil)
+	conn := &TestReadWriteCloser{}
 
+	db.conns = []io.ReadWriteCloser{
+		conn,
+	}
+
+	db.exit(conn)
+
+	if len(db.conns) > 0 {
+		t.Errorf("conn pool should be equals 0, got=\"%d\"", len(db.conns))
+	}
+}
+
+func TestMemoryDB_Exit_Integration(t *testing.T) {
+	db := New(nil)
+	msg := execute(db, "EXIT")
+
+	if msg != "exited" {
+		t.Errorf("msg does not correspond, expected=\"exited\" got=%s", msg)
+	}
+
+	if len(db.conns) > 0 {
+		t.Errorf("conn pool should be equals 0, got=%d", len(db.conns))
+	}
+}
+
+func TestMemoryDB_Close_Unit(t *testing.T) {
+	db := New(nil)
+	db.conns = []io.ReadWriteCloser{
+		&TestReadWriteCloser{},
+		&TestReadWriteCloser{},
+		&TestReadWriteCloser{},
+	}
+
+	db.close()
+
+	if len(db.conns) > 0 {
+		t.Errorf("conn pool should be equals 0, got=%d", len(db.conns))
+	}
 }
 
 type TestReadWriteCloser struct {

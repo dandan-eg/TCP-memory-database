@@ -1,6 +1,7 @@
 package db
 
 import (
+	"TCP-memory-database/saver"
 	"bufio"
 	"io"
 	"log"
@@ -9,6 +10,7 @@ import (
 )
 
 type MemoryDB struct {
+	Saver   saver.Saver
 	Quit    chan bool
 	records map[string]string
 	conns   []io.ReadWriteCloser
@@ -16,9 +18,10 @@ type MemoryDB struct {
 	writer  io.Writer
 }
 
-func New() *MemoryDB {
+func New(s saver.Saver) *MemoryDB {
 
 	return &MemoryDB{
+		Saver:   s,
 		Quit:    make(chan bool),
 		records: make(map[string]string),
 		conns:   make([]io.ReadWriteCloser, 0, 0),
@@ -29,12 +32,14 @@ func New() *MemoryDB {
 func (m *MemoryDB) register(conn io.ReadWriteCloser) {
 
 	m.conns = append(m.conns, conn)
+
 	//m.respond(conn, m.String())
 }
 
 func (m *MemoryDB) deregister(conn io.ReadWriteCloser) {
 	last := len(m.conns) - 1
 	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	for i, c := range m.conns {
 		if c == conn {
@@ -48,7 +53,6 @@ func (m *MemoryDB) deregister(conn io.ReadWriteCloser) {
 		}
 	}
 
-	m.mu.Unlock()
 }
 
 func (m *MemoryDB) Handle(conn io.ReadWriteCloser) {
@@ -78,6 +82,10 @@ func inputs(txt string) (string, string, string) {
 
 	if trim == "EXIT" {
 		return "EXIT", "", ""
+	}
+
+	if trim == "SAVE" {
+		return "SAVE", "", ""
 	}
 
 	if trim == "CLOSE" {

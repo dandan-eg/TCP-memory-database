@@ -12,24 +12,29 @@ func (m *MemoryDB) dispatch(conn io.ReadWriteCloser, action, key, value string) 
 			m.respond(conn, "bad request")
 			break
 		}
-
 		m.set(key, value)
 		m.respond(conn, "OK")
-	case "GET":
 
+	case "GET":
 		v, ok := m.get(key)
 		m.respondTernary(conn, ok, v, "not found")
+
 	case "DEL":
 		ok := m.delete(key)
 		m.respondTernary(conn, ok, "OK", "not found")
 
+	case "SAVE":
+		m.save()
+		m.respond(conn, "SAVED")
+
 	case "EXIT":
 		m.respond(conn, "exited")
-		m.closeConn(conn)
+		m.exit(conn)
 
 	case "CLOSE":
 		m.respondAll("db closed")
 		m.close()
+
 	default:
 		m.respond(conn, "bad request")
 	}
@@ -37,16 +42,22 @@ func (m *MemoryDB) dispatch(conn io.ReadWriteCloser, action, key, value string) 
 }
 
 func (m *MemoryDB) close() {
+
 	for _, conn := range m.conns {
-		go m.closeConn(conn)
+		if err := conn.Close(); err != nil {
+			m.internalError(err)
+		}
 	}
 
-	m.Quit <- true
+	m.conns = nil
+
+	close(m.Quit)
 }
 
-func (m *MemoryDB) closeConn(conn io.ReadWriteCloser) {
-	err := conn.Close()
-	m.handleErr(err)
+func (m *MemoryDB) exit(conn io.ReadWriteCloser) {
+	if err := conn.Close(); err != nil {
+		m.internalError(err)
+	}
 
 	m.deregister(conn)
 }
@@ -81,9 +92,16 @@ func (m *MemoryDB) delete(k string) bool {
 	return true
 }
 
-func (m *MemoryDB) handleErr(err error) {
+func (m *MemoryDB) save() {
+	err := m.Saver.Save(m.records)
 	if err != nil {
-		m.respondAll("internal error")
-		log.Fatalf("[FATAL] %s", err)
+		m.internalError(err)
 	}
+
+}
+
+func (m *MemoryDB) internalError(err error) {
+
+	m.respondAll("internal error")
+	log.Fatalf("[FATAL] %s", err)
 }

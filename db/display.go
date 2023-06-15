@@ -16,7 +16,10 @@ func (m *MemoryDB) respondTernary(conn io.ReadWriteCloser, ok bool, strue, sfals
 
 func (m *MemoryDB) respond(conn io.ReadWriteCloser, msg string) {
 	_, err := fmt.Fprintf(conn, fmt.Sprintf("%s\r\n", msg))
-	m.handleErr(err)
+	if err != nil {
+		m.internalError(err)
+
+	}
 }
 
 func (m *MemoryDB) respondAll(msg string) {
