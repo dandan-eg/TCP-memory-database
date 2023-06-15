@@ -1,11 +1,11 @@
-package db
+package memory
 
 import (
 	"io"
 	"log"
 )
 
-func (m *MemoryDB) dispatch(conn io.ReadWriteCloser, action, key, value string) {
+func (m *DB) dispatch(conn io.ReadWriteCloser, action, key, value string) {
 	switch action {
 	case "SET":
 		if value == "" || key == "" {
@@ -41,7 +41,7 @@ func (m *MemoryDB) dispatch(conn io.ReadWriteCloser, action, key, value string) 
 
 }
 
-func (m *MemoryDB) close() {
+func (m *DB) close() {
 
 	for _, conn := range m.conns {
 		if err := conn.Close(); err != nil {
@@ -51,10 +51,10 @@ func (m *MemoryDB) close() {
 
 	m.conns = nil
 
-	close(m.Quit)
+	m.quit <- true
 }
 
-func (m *MemoryDB) exit(conn io.ReadWriteCloser) {
+func (m *DB) exit(conn io.ReadWriteCloser) {
 	if err := conn.Close(); err != nil {
 		m.internalError(err)
 	}
@@ -62,7 +62,7 @@ func (m *MemoryDB) exit(conn io.ReadWriteCloser) {
 	m.deregister(conn)
 }
 
-func (m *MemoryDB) set(k, v string) {
+func (m *DB) set(k, v string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -70,7 +70,7 @@ func (m *MemoryDB) set(k, v string) {
 
 }
 
-func (m *MemoryDB) get(k string) (string, bool) {
+func (m *DB) get(k string) (string, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -79,7 +79,7 @@ func (m *MemoryDB) get(k string) (string, bool) {
 
 }
 
-func (m *MemoryDB) delete(k string) bool {
+func (m *DB) delete(k string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -92,7 +92,7 @@ func (m *MemoryDB) delete(k string) bool {
 	return true
 }
 
-func (m *MemoryDB) save() {
+func (m *DB) save() {
 	err := m.Saver.Save(m.records)
 	if err != nil {
 		m.internalError(err)
@@ -100,7 +100,7 @@ func (m *MemoryDB) save() {
 
 }
 
-func (m *MemoryDB) internalError(err error) {
+func (m *DB) internalError(err error) {
 
 	m.respondAll("internal error")
 	log.Fatalf("[FATAL] %s", err)

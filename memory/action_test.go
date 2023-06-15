@@ -1,4 +1,4 @@
-package db
+package memory
 
 import (
 	"bytes"
@@ -21,10 +21,10 @@ func (t *TestReadWriteCloser) String() string {
 	return strings.Replace(s, "\r\n", "", 1)
 }
 
-// newConn creates a new TestReadWriteCloser and uses it to simulate a connection to the MemoryDB.
-// It writes the given command to the TestReadWriteCloser and passes it to the MemoryDB's Handle method.
+// newConn creates a new TestReadWriteCloser and uses it to simulate a connection to the DB.
+// It writes the given command to the TestReadWriteCloser and passes it to the DB's Handle method.
 // It returns the TestReadWriteCloser for further inspection.
-func execute(db *MemoryDB, cmd string) string {
+func execute(db *DB, cmd string) string {
 	rwc := &TestReadWriteCloser{
 		Buffer: bytes.NewBuffer(nil),
 	}
@@ -38,7 +38,7 @@ func execute(db *MemoryDB, cmd string) string {
 
 func TestMemoryDB_SET_Unit(t *testing.T) {
 	//setup
-	db := New(nil)
+	db := NewDB(nil)
 
 	var before, after int
 
@@ -65,7 +65,7 @@ func TestMemoryDB_SET_Unit(t *testing.T) {
 
 func TestMemoryDB_SET_Integration(t *testing.T) {
 	//setup
-	db := New(nil)
+	db := NewDB(nil)
 
 	//scenarios
 	tests := []struct {
@@ -106,7 +106,7 @@ func TestMemoryDB_SET_Integration(t *testing.T) {
 func TestMemoryDB_GET_Unit(t *testing.T) {
 
 	//setup
-	db := New(nil)
+	db := NewDB(nil)
 	db.records = map[string]string{
 		"1": "john",
 		"2": "daniel",
@@ -149,7 +149,7 @@ func TestMemoryDB_GET_Unit(t *testing.T) {
 
 func TestMemoryDB_GET_Integration(t *testing.T) {
 	//setup
-	db := New(nil)
+	db := NewDB(nil)
 	db.records = map[string]string{
 		"name1": "john",
 		"name2": "maria",
@@ -179,7 +179,7 @@ func TestMemoryDB_GET_Integration(t *testing.T) {
 
 func TestMemoryDB_Delete_Unit(t *testing.T) {
 	//setup
-	db := New(nil)
+	db := NewDB(nil)
 	db.records = map[string]string{
 		"key": "value",
 	}
@@ -201,7 +201,7 @@ func TestMemoryDB_Delete_Unit(t *testing.T) {
 
 func TestMemoryDB_Delete_Integration(t *testing.T) {
 	//setup
-	db := New(nil)
+	db := NewDB(nil)
 	db.records = map[string]string{
 		"key1": "value1",
 		"key2": "value2",
@@ -237,7 +237,7 @@ func TestMemoryDB_Delete_Integration(t *testing.T) {
 }
 
 func TestMemoryDB_Exit_Unit(t *testing.T) {
-	db := New(nil)
+	db := NewDB(nil)
 	conn := &TestReadWriteCloser{}
 
 	db.conns = []io.ReadWriteCloser{
@@ -252,7 +252,7 @@ func TestMemoryDB_Exit_Unit(t *testing.T) {
 }
 
 func TestMemoryDB_Exit_Integration(t *testing.T) {
-	db := New(nil)
+	db := NewDB(nil)
 	msg := execute(db, "EXIT")
 
 	if msg != "exited" {
@@ -265,14 +265,16 @@ func TestMemoryDB_Exit_Integration(t *testing.T) {
 }
 
 func TestMemoryDB_Close_Unit(t *testing.T) {
-	db := New(nil)
+	db := NewDB(nil)
 	db.conns = []io.ReadWriteCloser{
 		&TestReadWriteCloser{},
 		&TestReadWriteCloser{},
 		&TestReadWriteCloser{},
 	}
 
-	db.close()
+	go db.close()
+
+	<-db.quit
 
 	if len(db.conns) > 0 {
 		t.Errorf("conn pool should be equals 0, got=%d", len(db.conns))

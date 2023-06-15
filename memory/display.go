@@ -1,4 +1,4 @@
-package db
+package memory
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func (m *MemoryDB) respondTernary(conn io.ReadWriteCloser, ok bool, strue, sfalse string) {
+func (m *DB) respondTernary(conn io.ReadWriteCloser, ok bool, strue, sfalse string) {
 	if ok {
 		m.respond(conn, strue)
 	} else {
@@ -14,7 +14,7 @@ func (m *MemoryDB) respondTernary(conn io.ReadWriteCloser, ok bool, strue, sfals
 	}
 }
 
-func (m *MemoryDB) respond(conn io.ReadWriteCloser, msg string) {
+func (m *DB) respond(conn io.ReadWriteCloser, msg string) {
 	_, err := fmt.Fprintf(conn, fmt.Sprintf("%s\r\n", msg))
 	if err != nil {
 		m.internalError(err)
@@ -22,7 +22,7 @@ func (m *MemoryDB) respond(conn io.ReadWriteCloser, msg string) {
 	}
 }
 
-func (m *MemoryDB) respondAll(msg string) {
+func (m *DB) respondAll(msg string) {
 
 	for _, conn := range m.conns {
 		m.respond(conn, msg)
@@ -30,7 +30,7 @@ func (m *MemoryDB) respondAll(msg string) {
 
 }
 
-func (m *MemoryDB) String() string {
+func (m *DB) String() string {
 	sb := strings.Builder{}
 
 	sb.WriteString("Memory Database methods :\r\n\n")

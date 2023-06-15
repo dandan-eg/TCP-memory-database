@@ -1,7 +1,7 @@
 package main
 
 import (
-	"TCP-memory-database/db"
+	"TCP-memory-database/memory"
 	"TCP-memory-database/saver"
 	"flag"
 	"log"
@@ -9,7 +9,6 @@ import (
 )
 
 func main() {
-
 	saverFormat := flag.String("save", "json", "")
 	saverPath := flag.String("out", "./", "")
 	flag.Parse()
@@ -19,31 +18,32 @@ func main() {
 		log.Fatalf("%s is not a supported format", *saverFormat)
 	}
 
-	li, err := net.Listen("tcp", ":8080")
+	sv := create(*saverPath)
+	db := memory.NewDB(sv)
+
+	go serve(db)
+	db.WaitForClose()
+}
+
+func serve(db *memory.DB) {
+	li, err := net.ListenTCP("tcp", localhost())
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	defer li.Close()
 
-	sv := create(*saverPath)
-	memory := db.New(sv)
-
-loop:
 	for {
-		select {
-		default:
-			conn, err := li.Accept()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			go memory.Handle(conn)
-
-		case <-memory.Quit:
-			break loop
+		conn, err := li.Accept()
+		if err != nil {
+			log.Fatal(err)
 		}
 
+		go db.Handle(conn)
 	}
 
+}
+
+func localhost() *net.TCPAddr {
+	return &net.TCPAddr{IP: net.ParseIP("0.0.0.0"), Port: 8080}
 }

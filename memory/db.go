@@ -1,4 +1,4 @@
-package db
+package memory
 
 import (
 	"TCP-memory-database/saver"
@@ -9,34 +9,34 @@ import (
 	"sync"
 )
 
-type MemoryDB struct {
+type DB struct {
 	Saver   saver.Saver
-	Quit    chan bool
+	quit    chan bool
 	records map[string]string
 	conns   []io.ReadWriteCloser
 	mu      *sync.RWMutex
 	writer  io.Writer
 }
 
-func New(s saver.Saver) *MemoryDB {
+func NewDB(s saver.Saver) *DB {
 
-	return &MemoryDB{
+	return &DB{
 		Saver:   s,
-		Quit:    make(chan bool),
+		quit:    make(chan bool),
 		records: make(map[string]string),
 		conns:   make([]io.ReadWriteCloser, 0, 0),
 		mu:      &sync.RWMutex{},
 	}
 }
 
-func (m *MemoryDB) register(conn io.ReadWriteCloser) {
+func (m *DB) register(conn io.ReadWriteCloser) {
 
 	m.conns = append(m.conns, conn)
 
 	//m.respond(conn, m.String())
 }
 
-func (m *MemoryDB) deregister(conn io.ReadWriteCloser) {
+func (m *DB) deregister(conn io.ReadWriteCloser) {
 	last := len(m.conns) - 1
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -55,7 +55,7 @@ func (m *MemoryDB) deregister(conn io.ReadWriteCloser) {
 
 }
 
-func (m *MemoryDB) Handle(conn io.ReadWriteCloser) {
+func (m *DB) Handle(conn io.ReadWriteCloser) {
 
 	m.register(conn)
 
@@ -111,4 +111,8 @@ func inputs(txt string) (string, string, string) {
 	}
 
 	return action, key, value
+}
+
+func (m *DB) WaitForClose() bool {
+	return <-m.quit
 }
