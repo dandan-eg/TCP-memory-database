@@ -2,6 +2,7 @@ package memory
 
 import (
 	"TCP-memory-database/saver"
+	"TCP-memory-database/src"
 	"bufio"
 	"io"
 	"log"
@@ -10,30 +11,29 @@ import (
 )
 
 type DB struct {
-	Saver   saver.Saver
-	quit    chan bool
-	records map[string]string
-	conns   []io.ReadWriteCloser
-	mu      *sync.RWMutex
-	writer  io.Writer
+	Saver  saver.Saver
+	quit   chan bool
+	data   map[string]string
+	conns  []io.ReadWriteCloser
+	mu     *sync.RWMutex
+	writer io.Writer
 }
 
 func NewDB(s saver.Saver) *DB {
 
 	return &DB{
-		Saver:   s,
-		quit:    make(chan bool),
-		records: make(map[string]string),
-		conns:   make([]io.ReadWriteCloser, 0, 0),
-		mu:      &sync.RWMutex{},
+		Saver: s,
+		quit:  make(chan bool),
+		data:  make(map[string]string),
+		conns: make([]io.ReadWriteCloser, 0, 0),
+		mu:    &sync.RWMutex{},
 	}
 }
 
 func (m *DB) register(conn io.ReadWriteCloser) {
-
 	m.conns = append(m.conns, conn)
 
-	//m.respond(conn, m.String())
+	m.respond(conn, m.String())
 }
 
 func (m *DB) deregister(conn io.ReadWriteCloser) {
@@ -49,6 +49,7 @@ func (m *DB) deregister(conn io.ReadWriteCloser) {
 
 			// Remove the last connection from the slice
 			m.conns = m.conns[:last]
+
 			return
 		}
 	}
@@ -73,6 +74,24 @@ func (m *DB) Handle(conn io.ReadWriteCloser) {
 	}
 }
 
+func (m *DB) WaitForClose() bool {
+	return <-m.quit
+}
+
+func (m *DB) Load(src src.Sourcer) error {
+	if src == nil {
+		return nil
+	}
+
+	data, err := src.Data()
+	if err != nil {
+		return err
+	}
+
+	m.data = data
+	return nil
+}
+
 func inputs(txt string) (string, string, string) {
 	trim := strings.TrimSpace(txt)
 
@@ -80,39 +99,28 @@ func inputs(txt string) (string, string, string) {
 		return "", "", ""
 	}
 
-	if trim == "EXIT" {
+	switch strings.ToUpper(trim) {
+	case "EXIT":
 		return "EXIT", "", ""
-	}
-
-	if trim == "SAVE" {
+	case "SAVE":
 		return "SAVE", "", ""
-	}
-
-	if trim == "CLOSE" {
+	case "CLOSE":
 		return "CLOSE", "", ""
 	}
 
 	fs := strings.Fields(trim)
-	var (
-		action string
-		key    string
-		value  string
-	)
 
 	if len(fs) < 2 {
 		return "", "", ""
-	} else {
-		action = fs[0]
-		key = fs[1]
 	}
+
+	action := fs[0]
+	key := fs[1]
+	value := ""
 
 	if len(fs) == 3 {
 		value = fs[2]
 	}
 
 	return action, key, value
-}
-
-func (m *DB) WaitForClose() bool {
-	return <-m.quit
 }

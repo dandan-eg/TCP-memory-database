@@ -1,6 +1,7 @@
 package saver
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,11 +13,23 @@ type Saver interface {
 	Save(map[string]string) error
 }
 
-type CreateSaverFunc func(output string) Saver
+func New(path, ext string) (Saver, error) {
 
-var Factory = map[string]CreateSaverFunc{
-	"csv":  newCsvSaver,
-	"json": newJsonSaver,
+	ext = strings.ToLower(ext)
+	if !strings.HasPrefix(ext, ".") {
+		ext = "." + ext
+	}
+
+	switch ext {
+	case ".csv":
+		return &csvSaver{path: path}, nil
+	case ".json":
+		return &jsonSaver{path: path}, nil
+	default:
+		return nil, errors.New("unsupported file type for saving")
+
+	}
+
 }
 
 func createFile(path, extension string) (*os.File, error) {

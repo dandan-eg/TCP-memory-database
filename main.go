@@ -3,33 +3,52 @@ package main
 import (
 	"TCP-memory-database/memory"
 	"TCP-memory-database/saver"
+	"TCP-memory-database/src"
 	"flag"
 	"log"
 	"net"
 )
 
 func main() {
-	saverFormat := flag.String("save", "json", "")
-	saverPath := flag.String("out", "./", "")
+	// Command line flags
+	saverPath := flag.String("out", "./", "Save path")
+	saverType := flag.String("save", "json", "Save format (json, csv)")
+	srcPath := flag.String("src", "", "Source file path")
+
 	flag.Parse()
 
-	create, ok := saver.Factory[*saverFormat]
-	if !ok {
-		log.Fatalf("%s is not a supported format", *saverFormat)
-	}
-
-	sv := create(*saverPath)
-	db := memory.NewDB(sv)
-
-	go serve(db)
-	db.WaitForClose()
-}
-
-func serve(db *memory.DB) {
-	li, err := net.ListenTCP("tcp", localhost())
+	save, err := saver.New(*saverPath, *saverType)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	db := memory.NewDB(save)
+
+	var source src.Sourcer
+
+	if *srcPath != "" {
+		source, err = src.New(*srcPath)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if err := db.Load(source); err != nil {
+		log.Fatal(err)
+	}
+
+	// Start the server
+	go serve(db, ":8080")
+	db.WaitForClose()
+}
+
+func serve(db *memory.DB, port string) {
+	li, err := net.Listen("tcp", port)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Server listening on %s\n", port)
 
 	defer li.Close()
 
@@ -42,8 +61,4 @@ func serve(db *memory.DB) {
 		go db.Handle(conn)
 	}
 
-}
-
-func localhost() *net.TCPAddr {
-	return &net.TCPAddr{IP: net.ParseIP("0.0.0.0"), Port: 8080}
 }

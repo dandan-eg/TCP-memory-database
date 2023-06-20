@@ -22,18 +22,17 @@ func (t *TestReadWriteCloser) String() string {
 }
 
 // newConn creates a new TestReadWriteCloser and uses it to simulate a connection to the DB.
-// It writes the given command to the TestReadWriteCloser and passes it to the DB's Handle method.
+// It writes the given command to the TestReadWriteCloser and passes it to the DB's handle method.
 // It returns the TestReadWriteCloser for further inspection.
 func execute(db *DB, cmd string) string {
 	rwc := &TestReadWriteCloser{
-		Buffer: bytes.NewBuffer(nil),
+		Buffer: &bytes.Buffer{},
 	}
 
-	rwc.WriteString(cmd)
-	db.Handle(rwc)
+	action, k, v := inputs(cmd)
+	db.dispatch(rwc, action, k, v)
 
 	return rwc.String()
-
 }
 
 func TestMemoryDB_SET_Unit(t *testing.T) {
@@ -44,18 +43,18 @@ func TestMemoryDB_SET_Unit(t *testing.T) {
 
 	//add new value
 
-	before = len(db.records)
+	before = len(db.data)
 	db.set("key", "value")
-	after = len(db.records)
+	after = len(db.data)
 
 	if before+1 != after {
 		t.Fatal("length after should be one more than before")
 	}
 
 	//replace the value
-	after = len(db.records)
+	after = len(db.data)
 	db.set("key", "another value")
-	before = len(db.records)
+	before = len(db.data)
 
 	if before != after {
 		t.Fatal("replace should not change the length")
@@ -93,7 +92,7 @@ func TestMemoryDB_SET_Integration(t *testing.T) {
 			return
 		}
 
-		_, ok := db.records["name"]
+		_, ok := db.data["name"]
 
 		if !ok {
 			t.Error("key \"names\" should exists, got=false")
@@ -107,7 +106,7 @@ func TestMemoryDB_GET_Unit(t *testing.T) {
 
 	//setup
 	db := NewDB(nil)
-	db.records = map[string]string{
+	db.data = map[string]string{
 		"1": "john",
 		"2": "daniel",
 	}
@@ -150,7 +149,7 @@ func TestMemoryDB_GET_Unit(t *testing.T) {
 func TestMemoryDB_GET_Integration(t *testing.T) {
 	//setup
 	db := NewDB(nil)
-	db.records = map[string]string{
+	db.data = map[string]string{
 		"name1": "john",
 		"name2": "maria",
 	}
@@ -180,7 +179,7 @@ func TestMemoryDB_GET_Integration(t *testing.T) {
 func TestMemoryDB_Delete_Unit(t *testing.T) {
 	//setup
 	db := NewDB(nil)
-	db.records = map[string]string{
+	db.data = map[string]string{
 		"key": "value",
 	}
 
@@ -202,7 +201,7 @@ func TestMemoryDB_Delete_Unit(t *testing.T) {
 func TestMemoryDB_Delete_Integration(t *testing.T) {
 	//setup
 	db := NewDB(nil)
-	db.records = map[string]string{
+	db.data = map[string]string{
 		"key1": "value1",
 		"key2": "value2",
 		"key3": "value3",
@@ -228,7 +227,7 @@ func TestMemoryDB_Delete_Integration(t *testing.T) {
 		}
 
 		key := strings.Replace(test.cmd, "DEL ", "", 1)
-		if _, ok := db.records[key]; ok {
+		if _, ok := db.data[key]; ok {
 			t.Fatalf("key=%s should be deleted, got ok=true", key)
 		}
 

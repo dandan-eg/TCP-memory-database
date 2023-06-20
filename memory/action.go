@@ -51,14 +51,13 @@ func (m *DB) close() {
 
 	m.conns = nil
 
-	m.quit <- true
+	close(m.quit)
 }
 
 func (m *DB) exit(conn io.ReadWriteCloser) {
 	if err := conn.Close(); err != nil {
 		m.internalError(err)
 	}
-
 	m.deregister(conn)
 }
 
@@ -66,7 +65,7 @@ func (m *DB) set(k, v string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.records[k] = v
+	m.data[k] = v
 
 }
 
@@ -74,7 +73,7 @@ func (m *DB) get(k string) (string, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	v, ok := m.records[k]
+	v, ok := m.data[k]
 	return v, ok
 
 }
@@ -83,17 +82,17 @@ func (m *DB) delete(k string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.records[k]; !ok {
+	if _, ok := m.data[k]; !ok {
 		return false
 	}
 
-	delete(m.records, k)
+	delete(m.data, k)
 
 	return true
 }
 
 func (m *DB) save() {
-	err := m.Saver.Save(m.records)
+	err := m.Saver.Save(m.data)
 	if err != nil {
 		m.internalError(err)
 	}
